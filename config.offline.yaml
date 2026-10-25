@@ -1,0 +1,37 @@
+# Offline smoke-test profile: no LLM, no model downloads, no internet.
+#
+#   python -m harag --config config.offline.yaml ingest
+#   python -m harag --config config.offline.yaml evaluate
+#
+# Uses a deterministic extractive "demo" LLM that deliberately injects hallucinations
+# into some answers, TF-IDF embeddings and a lexical claim verifier. It exists to test
+# that the whole pipeline, metrics and plots work. Do NOT report its numbers in the thesis:
+# real results come from config.yaml with real models.
+
+inherit: config.yaml
+
+index_dir: data/index_offline
+results_dir: results_offline
+cache_path: .cache/llm_cache_offline.sqlite
+
+embeddings:
+  provider: tfidf
+
+reranker:
+  provider: none
+
+llm:
+  provider: demo
+  model: demo-extractive
+  hallucination_rate: 0.35   # share of answers into which the demo LLM injects a false detail
+
+judge:
+  provider: demo
+  model: demo-judge
+
+verification:
+  method: lexical
+  claim_extraction: sentences
+
+confidence:
+  calibration_file: results_offline/calibration.json

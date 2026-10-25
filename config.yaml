@@ -1,0 +1,80 @@
+# Hallucination-aware RAG prototype: main configuration.
+#
+# Default setup runs fully locally:
+#   - generator and judge LLMs through Ollama's OpenAI-compatible API
+#   - embeddings, reranker and NLI verifier through sentence-transformers (Hugging Face)
+# Any OpenAI-compatible endpoint works (OpenAI, Azure OpenAI, Groq, Together, vLLM, LM Studio):
+# change base_url / model / api_key. Values like ${OPENAI_API_KEY} are read from environment variables.
+
+corpus_dir: data/corpus
+index_dir: data/index
+questions_file: data/eval/questions.jsonl
+results_dir: results
+cache_path: .cache/llm_cache.sqlite   # caches every LLM response -> reruns are cheap and reproducible
+seed: 42
+
+chunking:
+  chunk_size: 180        # words per chunk (~250 tokens)
+  overlap: 30            # words shared between neighbouring chunks
+
+embeddings:
+  provider: sentence-transformers     # sentence-transformers | openai | tfidf
+  model: BAAI/bge-small-en-v1.5       # use BAAI/bge-m3 for Hungarian / multilingual documents
+  query_prefix: "Represent this sentence for searching relevant passages: "
+  # for provider "openai" (e.g. Ollama: model nomic-embed-text):
+  base_url: http://localhost:11434/v1
+  api_key: ollama
+
+reranker:
+  provider: cross-encoder             # cross-encoder | none
+  model: BAAI/bge-reranker-base
+
+retrieval:
+  top_k: 8               # candidates from vector search
+  top_n: 4               # chunks passed to the generator after reranking
+
+llm:                     # generator model
+  provider: openai-compatible         # openai-compatible | demo
+  base_url: http://localhost:11434/v1
+  api_key: ollama
+  model: llama3.1:8b
+  temperature: 0.0
+  max_tokens: 400
+  json_mode: true        # set false if your endpoint rejects response_format
+  timeout: 180
+
+judge:                   # evaluation judge, ideally a different and stronger model than the generator
+  provider: openai-compatible
+  base_url: http://localhost:11434/v1
+  api_key: ollama
+  model: qwen2.5:14b
+  temperature: 0.0
+  max_tokens: 800
+  json_mode: true
+  timeout: 300
+
+verification:
+  method: nli            # nli | llm | lexical   (runtime claim verifier)
+  nli_model: cross-encoder/nli-deberta-v3-base
+  support_threshold: 0.5 # entailment probability needed for "supported"
+  claim_extraction: llm  # llm | sentences
+  max_correction_rounds: 1
+
+confidence:
+  method: weighted       # weighted | logistic (logistic needs a calibration file)
+  weights:
+    retrieval: 0.33      # R: reranker relevance of retrieved chunks
+    similarity: 0.33     # S: semantic similarity answer <-> context
+    faithfulness: 0.34   # F: share of verified claims
+  threshold: 0.60        # tau: below it the system abstains
+  flag_band: 0.0         # >0: answers with tau-band <= C < tau are shown with a low-confidence warning
+                         # (keep 0 for the experiments; flagged answers count as answered)
+  calibration_file: results/calibration.json   # written by `python -m harag calibrate`; overrides weights/threshold
+
+calibration:
+  strategy: coverage     # coverage | youden
+  min_coverage: 0.80     # for "coverage": lowest hallucination rate while the gate keeps >= 80% of answers to answerable questions
+
+evaluation:
+  configs: [A, B, C, D]
+  bootstrap_samples: 2000
