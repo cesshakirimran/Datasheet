@@ -7,6 +7,8 @@ variants.
 
 Everything runs locally with open models (Ollama + Hugging Face), or with any OpenAI-compatible API.
 
+Full project documentation: [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
+
 ```
 question ─► retrieve (dense vectors) ─► rerank (cross-encoder) ─► generate answer with citations      ← A: baseline
                                                                        │
