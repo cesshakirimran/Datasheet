@@ -1,5 +1,7 @@
 # Hallucination-Aware RAG Knowledge Base (prototype)
 
+[![Tests](https://github.com/cesshakirimran/Datasheet/actions/workflows/tests.yml/badge.svg)](https://github.com/cesshakirimran/Datasheet/actions/workflows/tests.yml)
+
 A retrieval-augmented question-answering system for enterprise knowledge management. It verifies its own
 answers against the source documents, scores its confidence, and abstains instead of guessing. It also
 includes a complete evaluation harness that compares a baseline RAG pipeline with the hallucination-aware
@@ -7,7 +9,7 @@ variants.
 
 Everything runs locally with open models (Ollama + Hugging Face), or with any OpenAI-compatible API.
 
-Full project documentation: [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md).
+Documentation: [project documentation](docs/PROJECT_DOCUMENTATION.md) · [thesis overview and subtask mapping](docs/THESIS_OVERVIEW.md)
 
 ```
 question ─► retrieve (dense vectors) ─► rerank (cross-encoder) ─► generate answer with citations      ← A: baseline
@@ -58,14 +60,14 @@ lexical verifier. It only proves the code runs end to end. **Its numbers are not
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt    # or: conda env create -f environment.yml && conda activate harag
 
-python -m harag --config config.offline.yaml ingest
-python -m harag --config config.offline.yaml ask "What is the hotel limit per night in London?" --compare
-python -m harag --config config.offline.yaml calibrate
-python -m harag --config config.offline.yaml evaluate
+bash scripts/run_offline_demo.sh   # ingest -> ask -> calibrate -> evaluate (offline profile)
 python -m pytest -q
 ```
+
+On Windows without bash, run the four `python -m harag --config config.offline.yaml ...` commands listed in
+`scripts/run_offline_demo.sh` one by one.
 
 ## 2. Real setup
 
@@ -106,6 +108,10 @@ python -m harag evaluate       # runs A, B, C, D on the test split, judges, writ
 streamlit run app.py           # demo UI
 ```
 
+`bash scripts/run_experiment.sh` runs check → ingest → calibrate → evaluate in one go and also saves the
+package versions and Ollama model list to `results/` for reproducibility. After `pip install -e .` the
+command `harag ...` works as a shortcut for `python -m harag ...`.
+
 Output in `results/test/`:
 
 - `report.md`: all tables (summary, paired tests, signal AUROC, calibration)
@@ -131,7 +137,7 @@ python -m harag kappa results/annotation/annotation_sample.csv results/annotatio
 ### 2.4 Optional: RAGAS cross-check
 
 ```bash
-pip install -r requirements-ragas.txt
+pip install -r requirements-ragas.txt      # or: pip install -e ".[ragas]"
 python -m harag ragas -c A     # and -c D; writes results/test/ragas_<config>.csv
 ```
 
@@ -190,36 +196,52 @@ All in `config.yaml`:
 - `confidence.method`: `weighted` vs `logistic`; `calibration.strategy`: `coverage` vs `youden`; `min_coverage`
 - `confidence.flag_band`: show borderline answers with a warning instead of abstaining
 
-## 6. Project structure
+## 6. Repository structure
 
 ```
-harag/
-  config.py          YAML config with inheritance and ${ENV} expansion
-  documents.py       loading + section-aware chunking
-  embeddings.py      sentence-transformers / OpenAI-compatible / TF-IDF embedders
-  vectorstore.py     persistent NumPy vector index
-  reranker.py        cross-encoder reranker
-  llm.py             OpenAI-compatible client with cache and cost tracking; demo LLM for tests
-  prompts.py         every prompt used (quote these in an appendix)
-  verifier.py        claim extraction + NLI / LLM / lexical verifiers
-  confidence.py      R, S, F signals and the combined score C
-  pipeline.py        RAGSystem and configurations A-D
-  cli.py             command-line interface
+harag/                      Python package
+  config.py                 YAML config with inheritance and ${ENV} expansion
+  documents.py              loading + section-aware chunking
+  embeddings.py             sentence-transformers / OpenAI-compatible / TF-IDF embedders
+  vectorstore.py            persistent NumPy vector index
+  reranker.py               cross-encoder reranker
+  llm.py                    OpenAI-compatible client with cache and cost tracking; demo LLM for tests
+  prompts.py                every prompt used (quote these in an appendix)
+  verifier.py               claim extraction + NLI / LLM / lexical verifiers
+  confidence.py             R, S, F signals and the combined score C
+  pipeline.py               RAGSystem and configurations A-D
+  cli.py                    command-line interface
   evaluation/
-    judge.py         LLM-as-a-judge (faithfulness, relevancy, correctness)
-    runner.py        runs configurations over questions (resumable)
-    metrics.py       metrics + statistical tests
-    calibration.py   fits weights and threshold
-    report.py        tables, figures, Markdown report
-    annotation.py    human validation of the judge (Cohen's kappa)
-    ragas_eval.py    optional RAGAS cross-check
-app.py               Streamlit UI
-config.yaml          main configuration (Ollama + Hugging Face models)
-config.offline.yaml  offline smoke-test profile
-data/corpus/         sample enterprise documents (fictional company)
-data/eval/           evaluation questions
-tests/               unit tests (no models needed)
+    judge.py                LLM-as-a-judge (faithfulness, relevancy, correctness)
+    runner.py               runs configurations over questions (resumable)
+    metrics.py              metrics + statistical tests
+    calibration.py          fits weights and threshold
+    report.py               tables, figures, Markdown report
+    annotation.py           human validation of the judge (Cohen's kappa)
+    ragas_eval.py           optional RAGAS cross-check
+app.py                      Streamlit demo UI
+config.yaml                 main configuration (Ollama + Hugging Face models)
+config.offline.yaml         offline smoke-test profile
+data/
+  corpus/                   sample enterprise documents (fictional company)
+  eval/                     evaluation questions + the script that builds them
+docs/
+  PROJECT_DOCUMENTATION.md  technical documentation
+  THESIS_OVERVIEW.md        thesis topic and subtask-to-code mapping
+  architecture.png          architecture diagram
+scripts/
+  run_offline_demo.sh       end-to-end smoke test without models
+  run_experiment.sh         full experiment with real models
+tests/                      unit tests (no models needed)
+.github/workflows/tests.yml CI: lint, unit tests and offline smoke test on every push
+requirements-core.txt       core dependencies (used by CI)
+requirements.txt            full dependencies (core + models + UI)
+requirements-ragas.txt      optional RAGAS cross-check
+environment.yml             Conda environment
+pyproject.toml              package metadata (pip install -e .)
 ```
+
+Generated folders (`data/index*/`, `results*/`, `.cache/`) are ignored by git.
 
 ## 7. Reproducibility notes
 
